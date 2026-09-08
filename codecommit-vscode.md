@@ -1,0 +1,185 @@
+# Managing an AWS CodeCommit Repo with VS Code
+
+Step-by-step setup for cloning, editing, and pushing to an AWS CodeCommit repository using
+VS Code, Git, Python, the `git-remote-codecommit` credential helper, and the AWS CLI.
+
+---
+
+## 1. Workflow
+
+```mermaid
+flowchart TD
+    A[Install VS Code] --> B[Install Git]
+    B --> C[Install Python + pip]
+    C --> D[Install AWS CLI v2]
+    D --> E[aws configure\nAccess Key, Secret Key, Region]
+    E --> F[pip install git-remote-codecommit]
+    F --> G[Verify IAM permissions\nfor CodeCommit]
+    G --> H["git clone codecommit://<repo-name>"]
+    H --> I[Open folder in VS Code]
+    I --> J[Edit, commit, push/pull\nusing VS Code Source Control]
+```
+
+---
+
+## 2. Prerequisites — what each tool is for
+
+| Tool | Why it's needed |
+|---|---|
+| **VS Code** | Editor with built-in Git/Source Control integration used to browse, edit, commit, and push. |
+| **Git** | The actual version control client VS Code drives under the hood. |
+| **Python + pip** | Required to install `git-remote-codecommit`, which is a Python package. |
+| **AWS CLI v2** | Used to configure AWS credentials/region (`aws configure`) and to manage CodeCommit repos, IAM, etc. from the command line. |
+| **`git-remote-codecommit`** | A Git credential helper (installed via `pip`) that lets `git` authenticate to CodeCommit using your AWS CLI credentials directly — no SSH keys or Git credential-helper setup needed. |
+
+---
+
+## 3. Install steps
+
+### 3.1 VS Code
+
+Download and install from https://code.visualstudio.com/. Optionally add the **GitLens** and
+**AWS Toolkit** extensions from the Extensions marketplace for richer Git history views and
+direct AWS resource browsing.
+
+### 3.2 Git
+
+**Windows**:
+```powershell
+winget install --id Git.Git -e
+```
+
+**Linux (Debian/Ubuntu)**:
+```bash
+sudo apt update && sudo apt install -y git
+```
+
+Verify:
+```bash
+git --version
+```
+
+### 3.3 Python + pip
+
+**Windows**: install from https://www.python.org/downloads/ (check "Add python.exe to PATH"
+during install), or:
+```powershell
+winget install --id Python.Python.3.12 -e
+```
+
+**Linux**:
+```bash
+sudo apt install -y python3 python3-pip
+```
+
+Verify:
+```bash
+python3 --version
+pip3 --version
+```
+
+> Per this project's Python conventions elsewhere, prefer `uv` for actual Python project/dependency
+> work — but `git-remote-codecommit` here is installed as a global CLI tool via `pip`/`pipx`
+> specifically because it needs to be on `PATH` for Git itself to invoke as a remote helper.
+
+### 3.4 AWS CLI v2
+
+**Windows**:
+```powershell
+winget install --id Amazon.AWSCLI -e
+```
+
+**Linux**:
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+```
+
+Verify:
+```bash
+aws --version
+```
+
+### 3.5 Configure AWS credentials
+
+```bash
+aws configure
+```
+
+Prompts for:
+- **AWS Access Key ID**
+- **AWS Secret Access Key**
+- **Default region name** (e.g. `us-east-1`)
+- **Default output format** (e.g. `json`)
+
+This writes to `~/.aws/credentials` and `~/.aws/config` (on Windows: `%USERPROFILE%\.aws\`).
+
+> The IAM user/role behind these credentials needs at least the `AWSCodeCommitPowerUser` managed
+> policy (or a custom policy granting `codecommit:GitPull`, `codecommit:GitPush`, and related
+> actions) to interact with CodeCommit repos.
+
+### 3.6 Install `git-remote-codecommit`
+
+```bash
+pip install git-remote-codecommit
+```
+
+Verify it's on `PATH` (Git needs to find it as `git-remote-codecommit`):
+```bash
+git-remote-codecommit --version
+```
+
+If not found after install, ensure Python's user `Scripts`/`bin` directory is on `PATH`
+(`pip show -f git-remote-codecommit` shows the install location).
+
+---
+
+## 4. Clone a CodeCommit repository
+
+With `git-remote-codecommit` installed, `git` gains support for a `codecommit://` URL scheme that
+handles AWS SigV4 authentication automatically using your configured AWS CLI credentials — no
+SSH key setup, no Git credential manager prompts.
+
+```bash
+git clone codecommit://<repository-name>
+```
+
+If the repo is in a non-default region or you use a named AWS CLI profile:
+
+```bash
+git clone codecommit://<profile-name>@<repository-name>
+# or, with an explicit region:
+git clone "codecommit::<region>://<profile-name>@<repository-name>"
+```
+
+---
+
+## 5. Open and work in VS Code
+
+```bash
+code <repository-name>
+```
+
+From there, use VS Code's built-in **Source Control** panel (`Ctrl+Shift+G`) exactly as with any
+other Git repo:
+
+- Stage/commit changes
+- **Push**/**Pull** — talks to CodeCommit transparently via the `codecommit://` remote and your
+  AWS CLI credentials (no extra prompts, as long as `aws configure` is set up correctly)
+- View history, diffs, branches, etc.
+
+No CodeCommit-specific VS Code configuration is required — from Git's point of view, `codecommit://`
+is just another remote URL scheme, resolved by the `git-remote-codecommit` helper installed above.
+
+---
+
+## 6. Troubleshooting
+
+| Issue | Likely cause / fix |
+|---|---|
+| `git: 'remote-codecommit' is not a git command` | `git-remote-codecommit` isn't on `PATH`. Re-check the `pip install` location and `PATH`. |
+| `fatal: repository 'codecommit://...' does not exist` | Wrong repo name, wrong region, or the IAM identity lacks `codecommit:GitPull`/`GitClone` permission on that repo. |
+| `An error occurred (AccessDeniedException)` on push | IAM user/role missing `codecommit:GitPush`, or the repo has branch protection/approval rules blocking a direct push. |
+| Wrong AWS account/region used | Check `aws configure list`, or pass `--profile <name>` / use `codecommit://<profile>@<repo>` to target a specific named profile. |
+| Credentials expire quickly (SSO/STS) | If using AWS SSO or temporary STS credentials, re-run `aws sso login` (or refresh the session) before pushing/pulling — the CodeCommit helper uses whatever credentials `aws` currently resolves. |

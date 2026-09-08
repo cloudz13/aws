@@ -1,0 +1,23 @@
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+.uv/
+
+# Env / secrets
+.env
+.env.*
+*.pem
+*.ppk
+
+# AWS
+.aws/credentials
+.aws/config
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
