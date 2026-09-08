@@ -151,14 +151,6 @@ SSH key setup, no Git credential manager prompts.
 git clone codecommit://<repository-name>
 ```
 
-If the repo is in a non-default region or you use a named AWS CLI profile:
-
-```bash
-git clone codecommit://<profile-name>@<repository-name>
-# or, with an explicit region:
-git clone "codecommit::<region>://<profile-name>@<repository-name>"
-```
-
 ### 2.3 Open the repo in VS Code
 
 ```bash
